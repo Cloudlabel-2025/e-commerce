@@ -86,6 +86,7 @@ html, body {
   background: #fff;
   outline: none;
   transition: border-color 0.15s;
+  appearance: none;
   -webkit-appearance: none;
 }
 
@@ -126,6 +127,7 @@ html, body {
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s, transform 0.1s;
+  appearance: none;
   -webkit-appearance: none;
 }
 
@@ -416,5 +418,6 @@ html, body {
 }
 
 @keyframes fadeOut {
+  from { opacity: 1; }
   to { opacity: 0; }
 }
