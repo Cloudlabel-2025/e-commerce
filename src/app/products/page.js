@@ -3,13 +3,35 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", brandName: "", platform: "" });
+
+function getInsight(sellingPrice, comparisons) {
+  if (!comparisons.length) return null;
+  const prices = comparisons.map((c) => c.competitorPrice);
+  const minComp = Math.min(...prices);
+  const maxComp = Math.max(...prices);
+  const avgComp = prices.reduce((a, b) => a + b, 0) / prices.length;
+  const diff = sellingPrice - avgComp;
+
+  if (diff > 0) return { type: "warn", text: `You're ₹${diff.toFixed(0)} above the avg competitor price (₹${avgComp.toFixed(0)}). Consider adjusting.` };
+  if (diff < 0) return { type: "good", text: `You're ₹${Math.abs(diff).toFixed(0)} below avg competitor price. Great competitive edge!` };
+  return { type: "same", text: `Your price matches the avg competitor price of ₹${avgComp.toFixed(0)}.` };
+}
+
 export default function ProductsPage() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [newComparisons, setNewComparisons] = useState({});
+  const [addingId, setAddingId] = useState(null);
+  const [newComps, setNewComps] = useState({});
   const [saving, setSaving] = useState(null);
+  const [toast, setToast] = useState("");
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2000);
+  };
 
   const fetchProducts = async () => {
     const res = await fetch("/api/products");
@@ -18,55 +40,47 @@ export default function ProductsPage() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  useEffect(() => { fetchProducts(); }, []);
 
-  const toggleExpand = (id) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-    setNewComparisons((prev) => ({
-      ...prev,
-      [id]: prev[id] || [{ competitorProductName: "", competitorPrice: "", brandName: "", platform: "" }],
-    }));
+  const toggleExpand = (id) => setExpandedId((prev) => (prev === id ? null : id));
+
+  const startAdding = (id) => {
+    setAddingId(id);
+    setNewComps((prev) => ({ ...prev, [id]: prev[id] || [emptyComp()] }));
   };
 
   const handleCompChange = (productId, index, e) => {
-    const updated = [...(newComparisons[productId] || [])];
+    const updated = [...(newComps[productId] || [])];
     updated[index][e.target.name] = e.target.value;
-    setNewComparisons((prev) => ({ ...prev, [productId]: updated }));
+    setNewComps((prev) => ({ ...prev, [productId]: updated }));
   };
 
   const addRow = (productId) => {
-    setNewComparisons((prev) => ({
-      ...prev,
-      [productId]: [
-        ...(prev[productId] || []),
-        { competitorProductName: "", competitorPrice: "", brandName: "", platform: "" },
-      ],
-    }));
+    setNewComps((prev) => ({ ...prev, [productId]: [...(prev[productId] || []), emptyComp()] }));
   };
 
   const removeRow = (productId, index) => {
-    const updated = (newComparisons[productId] || []).filter((_, i) => i !== index);
-    setNewComparisons((prev) => ({ ...prev, [productId]: updated }));
+    setNewComps((prev) => ({ ...prev, [productId]: (prev[productId] || []).filter((_, i) => i !== index) }));
   };
 
   const saveComparisons = async (product) => {
+    if (saving) return;
     setSaving(product._id);
     const merged = [
       ...product.comparisons,
-      ...(newComparisons[product._id] || []).filter((c) => c.competitorProductName && c.competitorPrice),
+      ...(newComps[product._id] || [])
+        .map((c) => ({ ...c, competitorPrice: Number(c.competitorPrice) }))
+        .filter((c) => c.competitorProductName && c.competitorPrice),
     ];
-
     const res = await fetch(`/api/products/${product._id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ comparisons: merged }),
     });
-
     if (res.ok) {
       await fetchProducts();
-      setExpandedId(null);
+      setAddingId(null);
+      showToast("Comparisons saved!");
     } else {
       const d = await res.json();
       alert(d.message);
@@ -76,178 +90,183 @@ export default function ProductsPage() {
 
   if (loading) {
     return (
-      <div className="container mt-5 text-center">
-        <div className="spinner-border" role="status" />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
+        <div className="spinner" style={{ borderColor: "rgba(0,0,0,0.15)", borderTopColor: "var(--primary)", width: 32, height: 32, borderWidth: 3 }} />
       </div>
     );
   }
 
   return (
-    <div className="container mt-4 mb-5">
-      <div className="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-2">
-        <h4 className="mb-0">All Products</h4>
-        <button className="btn btn-dark" onClick={() => router.push("/")}>
-          + Add Product
+    <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
+      {/* Header */}
+      <div className="app-header">
+        <h1>📋 My Products</h1>
+        <button
+          className="m-btn m-btn-primary"
+          style={{ width: "auto", padding: "8px 16px", fontSize: 14 }}
+          onClick={() => router.push("/")}
+        >
+          + Add
         </button>
       </div>
 
-      {products.length === 0 ? (
-        <div className="text-center text-muted py-5">No products found. Add one!</div>
-      ) : (
-        <div className="row g-3">
-          {products.map((product) => (
-            <div key={product._id} className="col-12">
-              <div className="card shadow-sm">
-                <div className="card-body">
+      <div style={{ padding: "16px 16px 40px" }}>
+        {products.length === 0 ? (
+          <div className="empty-state">
+            <div className="icon">📦</div>
+            <p style={{ fontWeight: 600, marginBottom: 6 }}>No products yet</p>
+            <p style={{ fontSize: 13 }}>Add your first product to start comparing prices</p>
+            <button className="m-btn m-btn-primary" style={{ marginTop: 20, maxWidth: 200 }} onClick={() => router.push("/")}>
+              + Add Product
+            </button>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 14 }}>
+              {products.length} product{products.length > 1 ? "s" : ""} tracked
+            </p>
+
+            {products.map((product) => {
+              const insight = getInsight(product.sellingPrice, product.comparisons);
+              const margin = Number(product.profitMargin);
+              const marginClass = margin >= 20 ? "good" : margin >= 10 ? "warn" : "bad";
+              const isExpanded = expandedId === product._id;
+              const isAdding = addingId === product._id;
+
+              return (
+                <div className="product-item" key={product._id}>
                   {/* Product Header */}
-                  <div className="row align-items-center g-2">
-                    <div className="col-12 col-sm-4">
-                      <div className="fw-semibold fs-6">{product.productName}</div>
-                      <small className="text-muted">Qty: {product.Quantity}g</small>
+                  <div className="product-item-header" onClick={() => toggleExpand(product._id)} style={{ cursor: "pointer" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, fontSize: 15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {product.productName}
+                      </p>
+                      <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+                        {product.Quantity}g · {product.comparisons.length} competitor{product.comparisons.length !== 1 ? "s" : ""}
+                      </p>
                     </div>
-                    <div className="col-6 col-sm-2 text-center">
-                      <small className="text-muted d-block">Cost</small>
-                      <span>₹{product.costPrice}</span>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <p style={{ fontWeight: 700, fontSize: 18 }}>₹{product.sellingPrice}</p>
+                      <span className={`margin-pill ${marginClass}`} style={{ fontSize: 11 }}>{margin.toFixed(1)}%</span>
                     </div>
-                    <div className="col-6 col-sm-2 text-center">
-                      <small className="text-muted d-block">Selling</small>
-                      <span>₹{product.sellingPrice}</span>
-                    </div>
-                    <div className="col-6 col-sm-2 text-center">
-                      <small className="text-muted d-block">Margin</small>
-                      <span
-                        className={
-                          product.profitMargin >= 0 ? "text-success fw-semibold" : "text-danger fw-semibold"
-                        }
-                      >
-                        {Number(product.profitMargin).toFixed(2)}%
-                      </span>
-                    </div>
-                    <div className="col-6 col-sm-2 text-sm-end">
-                      <button
-                        className="btn btn-sm btn-outline-primary w-100"
-                        onClick={() => toggleExpand(product._id)}
-                      >
-                        {expandedId === product._id ? "Hide" : `Compare (${product.comparisons.length})`}
-                      </button>
+                    <div style={{ marginLeft: 8, color: "var(--text-muted)", fontSize: 18 }}>
+                      {isExpanded ? "▲" : "▼"}
                     </div>
                   </div>
 
-                  {/* Comparisons Section */}
-                  {expandedId === product._id && (
-                    <div className="mt-3">
-                      {/* Existing comparisons table */}
-                      {product.comparisons.length > 0 && (
-                        <div className="table-responsive mb-3">
-                          <table className="table table-sm table-bordered mb-0">
-                            <thead className="table-light">
-                              <tr>
-                                <th>Product</th>
-                                <th>Brand</th>
-                                <th>Platform</th>
-                                <th>Price</th>
-                                <th>Diff</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {product.comparisons.map((c, i) => (
-                                <tr key={i}>
-                                  <td>{c.competitorProductName}</td>
-                                  <td>{c.brandName || "—"}</td>
-                                  <td>{c.platform || "—"}</td>
-                                  <td>₹{c.competitorPrice}</td>
-                                  <td
-                                    className={
-                                      c.priceDifference >= 0 ? "text-success" : "text-danger"
-                                    }
-                                  >
-                                    {c.priceDifference >= 0 ? "+" : ""}
-                                    {c.priceDifference}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                  {/* Expanded Body */}
+                  {isExpanded && (
+                    <div className="product-item-body">
+                      {/* Stats */}
+                      <div className="stat-row" style={{ marginBottom: 14 }}>
+                        <div className="stat-chip">
+                          <div className="val">₹{product.costPrice}</div>
+                          <div className="lbl">Cost</div>
+                        </div>
+                        <div className="stat-chip">
+                          <div className="val">₹{product.sellingPrice}</div>
+                          <div className="lbl">Selling</div>
+                        </div>
+                        <div className="stat-chip">
+                          <div className={`val ${marginClass === "good" ? "text-success" : marginClass === "bad" ? "text-danger" : ""}`} style={{ color: marginClass === "good" ? "var(--success)" : marginClass === "bad" ? "var(--danger)" : "var(--warning)" }}>
+                            {margin.toFixed(1)}%
+                          </div>
+                          <div className="lbl">Margin</div>
+                        </div>
+                      </div>
+
+                      {/* Insight */}
+                      {insight && (
+                        <div className={`insight-banner ${insight.type === "same" ? "warn" : insight.type}`}>
+                          {insight.text}
                         </div>
                       )}
 
-                      {/* Add new comparisons */}
-                      <p className="fw-semibold mb-2">Add Comparisons</p>
-                      {(newComparisons[product._id] || []).map((row, idx) => (
-                        <div key={idx} className="row g-2 mb-2 align-items-center">
-                          <div className="col-12 col-sm-3">
-                            <input
-                              name="competitorProductName"
-                              placeholder="Product Name"
-                              className="form-control form-control-sm"
-                              value={row.competitorProductName}
-                              onChange={(e) => handleCompChange(product._id, idx, e)}
-                            />
-                          </div>
-                          <div className="col-6 col-sm-2">
-                            <input
-                              name="competitorPrice"
-                              type="number"
-                              placeholder="Price"
-                              className="form-control form-control-sm"
-                              value={row.competitorPrice}
-                              onChange={(e) => handleCompChange(product._id, idx, e)}
-                            />
-                          </div>
-                          <div className="col-6 col-sm-3">
-                            <input
-                              name="brandName"
-                              placeholder="Brand"
-                              className="form-control form-control-sm"
-                              value={row.brandName}
-                              onChange={(e) => handleCompChange(product._id, idx, e)}
-                            />
-                          </div>
-                          <div className="col-10 col-sm-3">
-                            <input
-                              name="platform"
-                              placeholder="Platform"
-                              className="form-control form-control-sm"
-                              value={row.platform}
-                              onChange={(e) => handleCompChange(product._id, idx, e)}
-                            />
-                          </div>
-                          <div className="col-2 col-sm-1 text-end">
-                            {(newComparisons[product._id] || []).length > 1 && (
-                              <button
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => removeRow(product._id, idx)}
-                              >
-                                ✕
-                              </button>
-                            )}
+                      {/* Competitor list */}
+                      {product.comparisons.length > 0 && (
+                        <>
+                          <p className="section-label">Competitors</p>
+                          {product.comparisons.map((c, i) => {
+                            const diff = product.sellingPrice - c.competitorPrice;
+                            return (
+                              <div className="comp-card" key={i}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p className="comp-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.competitorProductName}</p>
+                                    <p className="comp-meta">
+                                      {[c.brandName, c.platform].filter(Boolean).join(" · ") || "—"}
+                                    </p>
+                                  </div>
+                                  <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
+                                    <p className="comp-price">₹{c.competitorPrice}</p>
+                                    <span className={`diff-badge ${diff > 0 ? "expensive" : diff < 0 ? "cheaper" : "same"}`}>
+                                      {diff > 0 ? `+₹${diff} you` : diff < 0 ? `-₹${Math.abs(diff)} you` : "Same"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+
+                      {/* Add comparisons */}
+                      {!isAdding ? (
+                        <button className="m-btn m-btn-outline" style={{ marginTop: 10 }} onClick={() => startAdding(product._id)}>
+                          + Add Competitor
+                        </button>
+                      ) : (
+                        <div style={{ marginTop: 14 }}>
+                          <p className="section-label">New Competitors</p>
+                          {(newComps[product._id] || []).map((row, idx) => (
+                            <div className="m-card-flat" key={idx}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>#{idx + 1}</span>
+                                {(newComps[product._id] || []).length > 1 && (
+                                  <button className="m-btn-danger-ghost" onClick={() => removeRow(product._id, idx)}>Remove</button>
+                                )}
+                              </div>
+                              <div className="m-field">
+                                <label className="m-label">Product Name</label>
+                                <input className="m-input" name="competitorProductName" placeholder="Competitor product name" value={row.competitorProductName} onChange={(e) => handleCompChange(product._id, idx, e)} />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                                <div>
+                                  <label className="m-label">Price ₹</label>
+                                  <input className="m-input" name="competitorPrice" type="number" inputMode="decimal" placeholder="0" value={row.competitorPrice} onChange={(e) => handleCompChange(product._id, idx, e)} />
+                                </div>
+                                <div>
+                                  <label className="m-label">Brand</label>
+                                  <input className="m-input" name="brandName" placeholder="Brand" value={row.brandName} onChange={(e) => handleCompChange(product._id, idx, e)} />
+                                </div>
+                              </div>
+                              <div>
+                                <label className="m-label">Platform</label>
+                                <input className="m-input" name="platform" placeholder="Amazon / Flipkart / Blinkit" value={row.platform} onChange={(e) => handleCompChange(product._id, idx, e)} />
+                              </div>
+                            </div>
+                          ))}
+                          <button className="m-btn m-btn-outline" style={{ marginBottom: 10 }} onClick={() => addRow(product._id)}>
+                            + Add Row
+                          </button>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                            <button className="m-btn m-btn-outline" onClick={() => setAddingId(null)}>Cancel</button>
+                            <button className="m-btn m-btn-success" disabled={saving === product._id} onClick={() => saveComparisons(product)}>
+                              {saving === product._id ? <><span className="spinner" /> Saving</> : "Save"}
+                            </button>
                           </div>
                         </div>
-                      ))}
-
-                      <div className="d-flex flex-wrap gap-2 mt-2">
-                        <button
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={() => addRow(product._id)}
-                        >
-                          + Add Row
-                        </button>
-                        <button
-                          className="btn btn-sm btn-success"
-                          disabled={saving === product._id}
-                          onClick={() => saveComparisons(product)}
-                        >
-                          {saving === product._id ? "Saving…" : "Save"}
-                        </button>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              );
+            })}
+          </>
+        )}
+      </div>
+
+      {toast && <div className="toast-success">{toast}</div>}
     </div>
   );
 }
