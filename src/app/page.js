@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", brandName: "", platform: "" });
-const emptyForm = () => ({ productName: "", Quantity: "", costPrice: "", sellingPrice: "", profitMargin: "" });
+const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "" });
+const emptyForm = () => ({ productName: "", Quantity: "", costPrice: "", sellingPrice: "", profitMargin: "", profit: "" });
 
 export default function Page() {
   const router = useRouter();
@@ -26,8 +26,10 @@ export default function Page() {
     const sell = Number(updated.sellingPrice);
     if (cost > 0 && sell > 0) {
       updated.profitMargin = (((sell - cost) / cost) * 100).toFixed(2);
+      updated.profit = (sell - cost).toFixed(2);
     } else {
       updated.profitMargin = "";
+      updated.profit = "";
     }
     setForm(updated);
   };
@@ -54,6 +56,7 @@ export default function Page() {
       costPrice: Number(form.costPrice),
       sellingPrice: Number(form.sellingPrice),
       profitMargin: Number(form.profitMargin),
+      profit: Number(form.profit),
       comparisons: comparisons
         .map((c) => ({ ...c, competitorPrice: Number(c.competitorPrice) }))
         .filter((c) => c.competitorProductName && c.competitorPrice),
@@ -126,6 +129,13 @@ export default function Page() {
                 </div>
               </div>
 
+              {form.profit && (
+                <div style={{ background: "#f7fafc", borderRadius: 10, padding: "12px 14px", marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>Profit (Absolute)</span>
+                  <span style={{ fontWeight: 700, fontSize: 15 }}>₹{form.profit}</span>
+                </div>
+              )}
+
               {form.profitMargin && (
                 <div style={{ background: "#f7fafc", borderRadius: 10, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>Profit Margin</span>
@@ -195,9 +205,14 @@ export default function Page() {
                     <input className="m-input" name="competitorPrice" type="number" inputMode="decimal" placeholder="0" value={item.competitorPrice} onChange={(e) => handleCompChange(index, e)} />
                   </div>
                   <div>
-                    <label className="m-label">Brand</label>
-                    <input className="m-input" name="brandName" placeholder="e.g. Everest" value={item.brandName} onChange={(e) => handleCompChange(index, e)} />
+                    <label className="m-label">Quantity</label>
+                    <input className="m-input" name="quantity" placeholder="e.g. 500g" value={item.quantity} onChange={(e) => handleCompChange(index, e)} />
                   </div>
+                </div>
+
+                <div className="m-field">
+                  <label className="m-label">Brand</label>
+                  <input className="m-input" name="brandName" placeholder="e.g. Everest" value={item.brandName} onChange={(e) => handleCompChange(index, e)} />
                 </div>
 
                 <div className="m-field" style={{ marginBottom: 0 }}>

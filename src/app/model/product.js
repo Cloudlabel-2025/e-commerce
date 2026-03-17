@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 const comparisonSchema = new mongoose.Schema({
   competitorProductName: { type: String, required: true },
   competitorPrice: { type: Number, required: true },
+  quantity: { type: String },
   brandName: { type: String },
   platform: { type: String },
   priceDifference: { type: Number },
@@ -15,6 +16,7 @@ const productSchema = new mongoose.Schema(
     costPrice: { type: Number, required: true },
     sellingPrice: { type: Number, required: true },
     profitMargin: { type: Number, required: true },
+    profit: { type: Number, required: true },
 
     comparisons: [comparisonSchema],
   },
