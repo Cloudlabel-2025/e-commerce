@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "" });
+const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "", productLink: "" });
 
 function getInsight(sellingPrice, comparisons) {
   if (!comparisons.length) return null;
@@ -360,6 +360,10 @@ export default function ProductsPage() {
                                        <input className="m-input" name="quantity" value={editCompForm.quantity} onChange={handleEditCompChange} />
                                      </div>
                                    </div>
+                                   <div className="m-field">
+                                     <label className="m-label">Product Link</label>
+                                     <input className="m-input" name="productLink" placeholder="https://..." value={editCompForm.productLink || ""} onChange={handleEditCompChange} />
+                                   </div>
                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                                      <button className="m-btn m-btn-outline" onClick={() => setEditingCompId(null)}>Cancel</button>
                                      <button className="m-btn m-btn-success" onClick={() => saveEditComp(product, i)}>Save</button>
@@ -430,9 +434,13 @@ export default function ProductsPage() {
                                 <label className="m-label">Brand</label>
                                 <input className="m-input" name="brandName" placeholder="Brand" value={row.brandName} onChange={(e) => handleCompChange(product._id, idx, e)} />
                               </div>
-                              <div>
+                              <div className="m-field">
                                 <label className="m-label">Platform</label>
                                 <input className="m-input" name="platform" placeholder="Amazon / Flipkart / Blinkit" value={row.platform} onChange={(e) => handleCompChange(product._id, idx, e)} />
+                              </div>
+                              <div>
+                                <label className="m-label">Product Link</label>
+                                <input className="m-input" name="productLink" placeholder="https://..." value={row.productLink} onChange={(e) => handleCompChange(product._id, idx, e)} />
                               </div>
                             </div>
                           ))}

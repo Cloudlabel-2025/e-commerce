@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "" });
+const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "", productLink: "" });
 const emptyForm = () => ({ productName: "", Quantity: "", costPrice: "", sellingPrice: "", profitMargin: "", profit: "" });
 
 export default function Page() {
@@ -215,9 +215,14 @@ export default function Page() {
                   <input className="m-input" name="brandName" placeholder="e.g. Everest" value={item.brandName} onChange={(e) => handleCompChange(index, e)} />
                 </div>
 
-                <div className="m-field" style={{ marginBottom: 0 }}>
+                <div className="m-field">
                   <label className="m-label">Platform</label>
                   <input className="m-input" name="platform" placeholder="e.g. Amazon / Flipkart / Blinkit" value={item.platform} onChange={(e) => handleCompChange(index, e)} />
+                </div>
+
+                <div className="m-field" style={{ marginBottom: 0 }}>
+                  <label className="m-label">Product Link</label>
+                  <input className="m-input" name="productLink" placeholder="e.g. https://amazon.in/dp/..." value={item.productLink} onChange={(e) => handleCompChange(index, e)} />
                 </div>
 
                 {/* Live price diff preview */}
