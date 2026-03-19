@@ -6,6 +6,7 @@ const comparisonSchema = new mongoose.Schema({
   quantity: { type: String },
   brandName: { type: String },
   platform: { type: String },
+  productLink: { type: String },
   priceDifference: { type: Number },
 });
 

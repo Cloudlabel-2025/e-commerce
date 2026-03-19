@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
 
 const emptyComp = () => ({ competitorProductName: "", competitorPrice: "", quantity: "", brandName: "", platform: "", productLink: "" });
 
@@ -201,6 +202,57 @@ export default function ProductsPage() {
     setSaving(null);
   };
 
+  const exportToExcel = () => {
+    // Find maximum number of competitors across all products
+    let maxComps = 0;
+    products.forEach((p) => {
+      if (p.comparisons && p.comparisons.length > maxComps) {
+        maxComps = p.comparisons.length;
+      }
+    });
+
+    const rows = products.map((p) => {
+      const prices = (p.comparisons || []).map((c) => c.competitorPrice);
+      const avgPrice = prices.length ? (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(0) : null;
+      const minPrice = prices.length ? Math.min(...prices) : null;
+
+      const row = {
+        "Product Name": p.productName,
+        Quantity: p.Quantity,
+        "Cost Price (₹)": p.costPrice,
+        "My Price (₹)": p.sellingPrice,
+        "Profit (₹)": p.profit,
+        "Margin (%)": p.profitMargin,
+        "Avg Comp (₹)": avgPrice || "—",
+        "Diff vs Avg (₹)": avgPrice ? (p.sellingPrice - avgPrice).toFixed(0) : "—",
+        "Best Comp (₹)": minPrice || "—",
+        "Diff vs Best (₹)": minPrice ? (p.sellingPrice - minPrice).toFixed(0) : "—",
+      };
+
+      // Add dynamic columns for each competitor
+      for (let i = 0; i < maxComps; i++) {
+        const c = p.comparisons && p.comparisons[i];
+        const num = i + 1;
+        row[`C${num} Name`] = c ? c.competitorProductName : "—";
+        row[`C${num} Price`] = c ? c.competitorPrice : "—";
+        row[`C${num} Platform`] = c ? c.platform || "—" : "—";
+        row[`C${num} Link`] = c ? c.productLink || "—" : "—";
+      }
+
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Market Analysis");
+    // Auto-size columns (basic attempt)
+    const wscols = [{ wch: 25 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
+    for (let i = 0; i < maxComps * 4; i++) wscols.push({ wch: 15 });
+    worksheet["!cols"] = wscols;
+
+    XLSX.writeFile(workbook, `PriceCheck_Export_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
@@ -214,13 +266,22 @@ export default function ProductsPage() {
       {/* Header */}
       <div className="app-header">
         <h1>📋 My Products</h1>
-        <button
-          className="m-btn m-btn-primary"
-          style={{ width: "auto", padding: "8px 16px", fontSize: 14 }}
-          onClick={() => router.push("/")}
-        >
-          + Add
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            className="m-btn m-btn-outline"
+            style={{ width: "auto", padding: "8px 12px", fontSize: 13, border: "1px solid var(--border)" }}
+            onClick={exportToExcel}
+          >
+            📊 Export
+          </button>
+          <button
+            className="m-btn m-btn-primary"
+            style={{ width: "auto", padding: "8px 16px", fontSize: 13 }}
+            onClick={() => router.push("/")}
+          >
+            + Add
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: "16px 16px 40px" }}>
@@ -357,8 +418,16 @@ export default function ProductsPage() {
                                      </div>
                                      <div>
                                        <label className="m-label">Quantity</label>
-                                       <input className="m-input" name="quantity" value={editCompForm.quantity} onChange={handleEditCompChange} />
+                                       <input className="m-input" name="quantity" value={editCompForm.quantity || ""} onChange={handleEditCompChange} />
                                      </div>
+                                   </div>
+                                   <div className="m-field">
+                                     <label className="m-label">Brand</label>
+                                     <input className="m-input" name="brandName" placeholder="Brand" value={editCompForm.brandName || ""} onChange={handleEditCompChange} />
+                                   </div>
+                                   <div className="m-field">
+                                     <label className="m-label">Platform</label>
+                                     <input className="m-input" name="platform" placeholder="Amazon / Flipkart / Blinkit" value={editCompForm.platform || ""} onChange={handleEditCompChange} />
                                    </div>
                                    <div className="m-field">
                                      <label className="m-label">Product Link</label>
@@ -389,9 +458,23 @@ export default function ProductsPage() {
                                    </div>
                                    <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 10 }}>
                                      <p className="comp-price">₹{c.competitorPrice}</p>
-                                     <span className={`diff-badge ${diff > 0 ? "expensive" : diff < 0 ? "cheaper" : "same"}`}>
-                                       {diff > 0 ? `+₹${diff} you` : diff < 0 ? `-₹${Math.abs(diff)} you` : "Same"}
-                                     </span>
+                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                                       <span className={`diff-badge ${diff > 0 ? "expensive" : diff < 0 ? "cheaper" : "same"}`}>
+                                         {diff > 0 ? `+₹${diff} you` : diff < 0 ? `-₹${Math.abs(diff)} you` : "Same"}
+                                       </span>
+                                       {c.productLink && (
+                                         <a 
+                                           href={c.productLink.startsWith("http") ? c.productLink : `https://${c.productLink}`} 
+                                           target="_blank" 
+                                           rel="noopener noreferrer"
+                                           className="m-btn-ghost"
+                                           style={{ padding: "2px 0", fontSize: 11, color: "var(--accent)", textDecoration: "underline", height: "auto" }}
+                                           onClick={(e) => e.stopPropagation()}
+                                         >
+                                           View Product ↗
+                                         </a>
+                                       )}
+                                     </div>
                                    </div>
                                  </div>
                                </div>
