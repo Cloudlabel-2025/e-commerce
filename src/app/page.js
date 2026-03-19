@@ -32,6 +32,16 @@ export default function Page() {
       updated.profit = "";
     }
     setForm(updated);
+
+    if (name === "productName") {
+      setComparisons((prev) => {
+        const newComps = [...prev];
+        if (newComps.length > 0 && (newComps[0].competitorProductName === "" || newComps[0].competitorProductName === form.productName)) {
+          newComps[0].competitorProductName = value;
+        }
+        return newComps;
+      });
+    }
   };
 
   const handleCompChange = (index, e) => {
